@@ -1,0 +1,133 @@
+---
+title: "SVMLab"
+author: "Steve Zhang"
+date: "March 3, 2017"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(R.matlab)
+```
+
+```{r}
+data1 <- readMat("ex6data1.mat")
+df1 <- data.frame(x1=data1$X[, 1], x2=data1$X[, 2], y=data1$y)
+head(df1)
+```
+
+```{r}
+ggplot(df1, aes(x=x1, y=x2)) + geom_point(aes(colour=factor(y)))
+```
+
+```{r}
+library(e1071)
+```
+
+```{r}
+svc1 <- svm(y~., data = df1, cost=100.0, type="C-classification", kernel="linear", probability=TRUE)
+preds <- predict(svc1, df1)
+mean(preds == df1$y)
+```
+
+```{r}
+pred_probs <- predict(svc1, df1, probability = TRUE)
+df1$predict <- preds
+df1$conf <- attr(pred_probs, "probabilities")[, 1]
+head(df1)
+```
+
+```{r}
+ggplot(df1, aes(x=x1, y=x2)) + geom_point(aes(shape=factor(predict), colour=conf)) + scale_colour_gradient(low="green", high="red")
+```
+
+```{r}
+data2 <- readMat("ex6data2.mat")
+df2 <- data.frame(x1=data2$X[, 1], x2=data2$X[, 2], y=data2$y)
+head(df2)
+```
+
+```{r}
+ggplot(df2, aes(x=x1, y=x2)) + geom_point(aes(colour=factor(y)))
+```
+
+```{r}
+svc2 <- svm(y~., data = df2, cost=100.0, probability=TRUE, type="C-classification", kernel="radial")
+preds <- predict(svc2, df2)
+df2$predict <- preds
+pred_probs <- predict(svc2, df2, probability = TRUE)
+df2$conf <- attr(pred_probs, "probabilities")[, 1]
+mean(preds == df2$y)
+```
+
+```{r}
+ggplot(df2, aes(x=x1, y=x2)) + geom_point(aes(colour=conf, shape=factor(predict))) + scale_colour_gradient(low="cyan", high="green")
+```
+
+```{r}
+data3 <- readMat("ex6data3.mat")
+train <- data.frame(x1=data3$X[, 1], x2=data3$X[, 2], y=data3$y)
+test <- data.frame(x1=data3$Xval[, 1], x2=data3$Xval[, 2], y=data3$yval)
+```
+
+```{r}
+ggplot(test, aes(x=x1, y=x2)) + geom_point(aes(colour=factor(y)))
+```
+
+```{r}
+ggplot(train, aes(x=x1, y=x2)) + geom_point(aes(colour=factor(y)))
+```
+
+
+
+```{r}
+Cvals <- c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100)
+Gvals <- c(0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100)
+bestScore = 0.0
+bestParams <- c(C=NA, gamma=NA)
+for (i in 1:length(Cvals)) {
+    for (j in 1: length(Gvals)) {
+        svc = svm(y~., data = train, cost=Cvals[i], gamma=Gvals[j], type="C-classification", kernel = "radial")
+        preds <- predict(svc, train)
+        score <- mean(preds == train$y)
+        if (score > bestScore) {
+            bestScore <- score
+            bestParams["C"] = Cvals[i]
+            bestParams["gamma"] <- Gvals[j]
+        }
+    }
+}
+cat("Best score:", bestScore)
+cat("Best parameters:", bestParams)
+```
+
+```{r}
+svmBest <- svm(y~., data = train, cost = bestParams["C"], gamma=bestParams["gamma"], type="C-classification", kernel = "radial")
+preds <- predict(svmBest, test)
+mean(preds == test$y)
+```
+
+```{r}
+strain <- readMat("spamTrain.mat")
+stest <- readMat("spamTest.mat")
+```
+
+```{r}
+xtrain <- strain$X
+ytrain <- strain$y
+xtest <- stest$Xtest
+ytest <- stest$ytest
+```
+
+```{r}
+spamTrain <- cbind(xtrain, ytrain)
+spamTrain <- data.frame(spamTrain)
+spam <- svm(X1900~., spamTrain, type="C-classification", scale = FALSE)
+```
+
+```{r}
+spamTest <- cbind(xtest, ytest)
+spamTest <- data.frame(spamTest)
+preds = predict(spam, spamTest)
+mean(preds == spamTest$X1900)
+```

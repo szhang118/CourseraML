@@ -1,0 +1,226 @@
+---
+title: "knnPCA"
+author: "Steve Zhang"
+date: "March 8, 2017"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(R.matlab)
+```
+
+```{r}
+euclid <- function(x, y) {
+    return(sum((x - y)^2))
+}
+```
+
+```{r}
+find_closest <- function(X, centroids) {
+    m <- dim(X)[1]
+    k <- dim(centroids)[1]
+    idx <- rep(0, m)
+    cost <- 0.0
+    
+    for (i in 1:m) {
+        min_dist <- 1000000000000
+        for (j in 1:k) {
+            dist <- euclid(X[i, ], centroids[j, ])
+            if (dist < min_dist) {
+                min_dist <- dist
+                idx[i] <- j
+            }
+        }
+        cost <- cost + min_dist
+    }
+    return(list(assign = idx, cost = cost))
+}
+```
+
+
+```{r}
+data <- readMat("ex7data2.mat")
+str(data)
+X = data$X
+```
+
+```{r}
+initial_centroids <- matrix(c(3, 6, 8, 3, 2, 5), nrow = 3)
+results <- find_closest(X, initial_centroids)
+results$assign[1:3]
+```
+
+```{r}
+compute_centroids <- function(X, idx, k) {
+    m <- dim(X)[1]
+    n <- dim(X)[2]
+    centroids <- matrix(rep(0, k * n), nrow = k)
+    
+    for (i in 1:k) {
+        indices <- idx == i
+        centroids[i, ] <- colSums(X[indices, ]) / sum(indices)
+    }
+    return(centroids)
+}
+compute_centroids(X, results$assign, 3)
+```
+
+```{r}
+km <- function(X, initial_centroids, max_iters) {
+    m <- dim(X)[1]
+    n <- dim(X)[2]
+    k <- dim(initial_centroids)[1]
+    idx <- rep(0, m)
+    centroids <- initial_centroids
+    costs <- rep(0, max_iters)
+    
+    for (i in 1:max_iters) {
+        results <- find_closest(X, centroids)
+        costs[i] <- results$cost
+        idx <- results$assign
+        centroids <- compute_centroids(X, idx, k)
+    }
+    return((list(assign=idx, centroids=centroids, cost=costs)))
+}
+```
+
+```{r}
+rand_centroids <- function(X, k) {
+    shuffle <- X
+    indices <- sample(1:nrow(X), k)
+    return(shuffle[indices, ])
+}
+rand_centroids(X, 3)
+```
+
+
+```{r}
+results <- km(X, rand_centroids(X, 3), 20)
+idx <- results$assign
+df <- data.frame(X)
+colnames(df) <- c("x", "y")
+df$cluster <- idx
+ggplot(df, aes(x=x, y=y)) + geom_point(aes(colour=factor(cluster)))
+```
+
+```{r}
+
+multiKMeans <- function(X, k, maxiters, numtrials=25, verbose=TRUE, plot=TRUE) {
+    trialCosts <- rep(0, numtrials)
+    best_cost <- 1000000000000000000
+    best_idx <- NA
+    best_centroids <- NA
+    for (i in 1:numtrials) {
+        rando <- rand_centroids(X, k)
+        results <- km(X, rando, maxiters)
+        trialCosts[i] <- results$cost[maxiters]
+        if (trialCosts[i] < best_cost) {
+            best_cost <- trialCosts[i]
+            best_idx <- results$assign
+            best_centroids <- results$centroids
+        }
+    }
+    if (verbose == TRUE) {
+        cat("The best cost is", best_cost, "\n")
+        cat("The worst cost is", max(trialCosts), "\n")
+        cat("The average cost is", mean(trialCosts), "\n")
+        cat("The median cost is", median(trialCosts), "\n")
+    }
+    if (plot == TRUE) {
+        df <- data.frame(X)
+        colnames(df) <- c("x", "y")
+        df$cluster <- best_idx
+        ggplot(df, aes(x=x, y=y)) + geom_point(aes(colour=factor(cluster)))
+    }
+}
+multiKMeans(X, 3, 15, 50)
+```
+
+```{r}
+Ks <- seq(2, 8, 1)
+bCosts <- rep(NA, length(Ks))
+for (i in 1:length(Ks)) {
+    results <- multiKMeans(X, Ks[i], 10, numtrials = 25, verbose = FALSE, plot=FALSE)
+    bCosts[i] <- results$cost[length(results$cost)]
+}
+df <- data.frame(k=Ks, cost=bCosts)
+ggplot(df, aes(x=k, y=cost)) + geom_line()
+```
+
+```{r}
+data <- readMat("ex7data1.mat")
+str(data)
+```
+
+```{r}
+df <- data.frame(x=data$X[, 1], y=data$X[, 2])
+ggplot(df, aes(x=x, y=y)) + geom_point()
+```
+
+```{r}
+X <- data$X
+pca <- function(X) {
+    X <- (X - mean(X)) / sd(X)
+    X <- as.matrix(X)
+    covmat <- (t(X) %*% X) / dim(X)[1]
+    results <- svd(covmat)
+    return(list(U = results$u, V = results$v, S=results$d))
+}
+```
+
+```{r}
+results <- pca(X)
+results$U
+results$V
+results$S
+```
+
+```{r}
+project_data <- function(X, U, k) {
+    U_reduce <- U[, 1:k]
+    return(X %*% U_reduce)
+}
+Z = project_data(X, results$U, 1)
+```
+
+```{r}
+recover_data <- function(Z, U, k) {
+    U_reduce <- U[, 1:k]
+    return(Z %*% t(U_reduce))
+}
+X_recover <- recover_data(Z, results$U, 1)
+```
+
+```{r}
+df <- data.frame(X_recover)
+colnames(df) <- c("x", "y")
+ggplot(df, aes(x=x, y=y)) + geom_point()
+```
+
+```{r}
+faces <- readMat("ex7faces.mat")
+faces <- faces$X
+dim(faces)
+```
+
+```{r}
+library(imager)
+```
+
+```{r}
+exFace <- matrix(faces[69, ], nrow = 32)
+plot(as.cimg(exFace))
+```
+
+```{r}
+face.pca <- prcomp(faces, center = TRUE, scale. = TRUE)
+print(face.pca)
+```
+
+```{r}
+summary(face.pca)
+```
+
+
+

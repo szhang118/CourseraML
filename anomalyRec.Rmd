@@ -1,0 +1,246 @@
+---
+title: "anomalyRec"
+author: "Steve Zhang"
+date: "March 19, 2017"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(R.matlab)
+```
+
+```{r}
+data <- readMat("ex8data1.mat")
+str(data)
+```
+
+```{r}
+X <- data$X
+dim(X)
+```
+
+```{r}
+df <- data.frame(X)
+colnames(df) <- c("x", "y")
+ggplot(df, aes(x=x, y=y)) + geom_point()
+```
+
+```{r}
+estimate_gauss <- function(X) {
+    mu <- colMeans(X)
+    sigma <- apply(X, 2, var)
+    results <- list(mu = mu, sig = sigma)
+    return(results)
+}
+estimate_gauss(X)
+```
+
+```{r}
+Xval <- data$Xval
+yval <- data$yval
+dim(Xval)
+dim(yval)
+```
+
+```{r}
+result <- estimate_gauss(X)
+mu <- result$mu
+sigma <- result$sig
+dnorm(15, mu[1], sigma[1])
+```
+
+```{r}
+dnorm(X[1:50 , 1], mu[1], sigma[1])
+```
+
+```{r}
+pval <- matrix(rep(0, length(X)), nrow = dim(X)[1])
+pval[, 1] <- dnorm(Xval[, 1], mean = mu[1], sd = sigma[1])
+pval[, 2] <- dnorm(Xval[, 2], mean = mu[2], sd = sigma[2])
+dim(pval)
+```
+
+```{r}
+p <- matrix(rep(0, length(X)), nrow = dim(X)[1])
+p[, 1] <- dnorm(X[, 1], mean = mu[1], sd = sigma[1])
+p[, 2] <- dnorm(X[, 2], mean = mu[2], sd = sigma[2])
+dim(p)
+```
+
+
+```{r}
+select_threshold <- function(pval, yval) {
+    best_epsilon <- 0.0
+    best_f1 <- 0.0
+    f1 <- 0.0
+    step <- (max(pval) - 0.000001) / 2500
+    
+    for (epsilon in seq(0.000001, max(pval), step)) {
+        preds <- pval < epsilon
+        preds <- preds[, 1] * preds[, 2]
+        tp <- sum(preds == 1 & yval ==1)
+        fp <- sum((preds == 1 & yval == 0))
+        fn <- sum((preds == 0 & yval == 1))
+        precision <- tp / (tp + fp)
+        recall <- tp / (tp + fn)
+        f1 <- (2 * precision * recall) / (precision + recall)
+        
+        if (f1 > best_f1) {
+            best_f1 <- f1
+            best_epsilon <- epsilon
+        }
+    }
+    return(c(best_epsilon, best_f1))
+}
+results <- select_threshold(pval, yval)
+results
+```
+
+```{r}
+outliers <- which(p < 0.009566706)
+outliers
+```
+
+```{r}
+data <- readMat("ex8_movies.mat")
+dim(data)
+str(data)
+```
+
+```{r}
+Y <- data$Y
+R <- data$R
+dim(Y)
+dim(R)
+```
+
+```{r}
+mean(Y[1, R[1, ]])
+```
+
+```{r}
+params <- readMat("ex8_movieParams.mat")
+X <- params$X
+theta <- params$Theta
+dim(X)
+dim(theta)
+```
+
+```{r}
+cost <- function(Y, R, num_features, learn, par) {
+    Y <- as.matrix(Y)
+    R <- as.matrix(R)
+    num_movies <- dim(Y)[1]
+    num_users <- dim(Y)[2]
+
+    X <- matrix(par[1:(num_movies * num_features)], nrow = num_movies)
+    theta <- matrix(par[(num_movies * num_features+1):length(par)], nrow = num_users)
+
+    J <- 0.0
+    Xgrad <- matrix(rep(0, dim(X)[1] * dim(X)[2]), nrow = dim(X)[1])
+    theta_grad <- matrix(rep(0, dim(theta)[1] * dim(theta)[2]), nrow = dim(theta)[1])
+    
+    error <- (X %*% t(theta) - Y) * R
+    squared_error <- error^2
+    J <- 0.5 * sum(squared_error) + (learn / 2)*sum(theta^2)
+    J <- J + (learn / 2) * sum(X^2)
+    
+    Xgrad <- (error %*% theta) + (learn * X)
+    theta_grad <- (t(error) %*% X) + (learn * theta)
+    grad <- c(as.vector(Xgrad), as.vector(theta_grad))
+    
+    return(list(cost = J, gradient = grad))
+}
+```
+
+
+```{r}
+users <- 4
+movies <- 5
+features <- 3
+Xsub <- X[1:movies, 1:features]
+theta_sub <- theta[1:users, 1:features]
+Ysub <- Y[1:movies, 1:users]
+Rsub <- R[1:movies, 1:users]
+
+parameters <- c(as.vector(Xsub), as.vector(theta_sub))
+cost(parameters, Ysub, Rsub, features)
+```
+
+```{r}
+results <- cost(Ysub, Rsub, features, 1.5, parameters)
+results$cost
+results$gradient
+```
+
+```{r}
+movie_idx <- list()
+mtext <- scan("movie_ids.txt", character(0), sep = "\n")
+for (i in 1:length(mtext)) {
+    tokens = strsplit(mtext[i], " ")[[1]]
+    len <- length(tokens)
+    tokens[len] <- substr(tokens[len], 1, nchar(tokens[len]))
+    movie_idx[as.numeric(tokens[1]) - 1] <- paste(tokens[2:len], " ")
+}
+movie_idx[[33]]
+```
+
+```{r}
+ratings <- matrix(rep(0, 1682), nrow = 1682)
+ratings[1] = 3
+ratings[6] = 4
+ratings[11] = 5
+ratings[53] = 2
+ratings[63] = 5
+ratings[65] = 1
+ratings[68] = 3
+ratings[97] = 5
+ratings[182] = 5
+ratings[225] = 3
+ratings[354] = 1
+```
+
+```{r}
+R <- data$R
+Y <- data$Y
+Y <- cbind(Y, ratings)
+R <- cbind(R, ratings != 0)
+dim(Y)
+dim(R)
+dim(ratings)
+```
+
+```{r}
+movies <- dim(Y)[1]
+users <- dim(Y)[2]
+features <- 10
+learning_rate <- 1.0
+X <- matrix(rnorm(movies * features), nrow = movies)
+theta <- matrix(rnorm(users * features), nrow = users)
+params <- matrix(c(as.vector(X), as.vector(theta)), nrow = (movies + users) * features)
+dim(X)
+dim(theta)
+dim(params)
+```
+
+```{r}
+Ymean <- matrix(rep(0, movies), nrow = movies)
+Ynorm <- matrix(rep(0, movies * users), nrow = movies)
+for (i in 1:movies) {
+    idx <- R[i, ] == 1
+    Ymean[i] <- mean(Y[i, idx])
+    Ynorm[i, idx] <- Y[i, idx] - Ymean[i]
+}
+mean(Ynorm)
+```
+
+```{r}
+install.packages("lbfgsb3")
+library(lbfgsb3)
+```
+
+```{r}
+theta <- lbfgsb3(params, fn = cost, )
+```
+

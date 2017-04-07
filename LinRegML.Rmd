@@ -1,0 +1,151 @@
+---
+title: "LinRegML"
+author: "Steve Zhang"
+date: "February 3, 2017"
+output: html_document
+---
+
+```{r}
+df <- read.csv("ex1data1.txt", header = FALSE)
+colnames(df) <- c("population", "profit")
+head(df)
+```
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(data = df, aes(x= population, y=profit)) + geom_point()
+```
+
+```{r}
+computeCost <- function(X, y, theta) {
+    inner = t(X %*% t(theta)-y) %*% ((X %*% t(theta)) - y)
+    return(sum(inner)/(2.0*nrow(X)))
+}
+```
+
+```{r}
+data <- data.matrix(df)
+data <- cbind(matrix(rep(1, nrow(df)), nrow = nrow(df)), data)
+dim(data)
+```
+
+```{r}
+numcols <- ncol(data)
+X <- data.matrix(data[, 1:numcols - 1])
+y <- data.matrix(data[, numcols])
+```
+
+```{r}
+theta <- matrix(c(0, 0), nrow = 1)
+dim(X)
+dim(y)
+dim(theta)
+```
+
+```{r}
+cat("Cost when weights are zero:", computeCost(X, y, theta))
+```
+
+```{r}
+linreg <- function(X, y) {
+    XtX = solve(t(X) %*% X)
+    return(XtX %*% t(X) %*% y)
+}
+```
+
+```{r}
+linreg(X, y)
+```
+
+```{r}
+gradDesc <- function(X, y, theta, alpha, iters) {
+    temp <- matrix(rep(0, length(theta)), nrow = nrow(theta))
+    numparams <- ncol(theta) #number of regression parameters including intercept
+    cost <- rep(NA, iters)
+    m <- nrow(X)  #number of observations
+    
+    for (i in 1:iters) {
+        errors <- X %*% t(theta) - y #errors for each observation
+        for (j in 1:numparams) {
+            temp[1, j] <- theta[1, j] - alpha/m *sum(errors * X[, j])
+        }
+        cost[i] <- computeCost(X, y, theta)
+        theta <- temp
+    }
+    return(list(theta, cost))
+}
+```
+
+```{r}
+results <- gradDesc(X, y, theta, 0.01, 2000)
+coefs <- results[[1]]
+coefs
+```
+
+```{r}
+preds <- X %*% t(coefs)
+```
+
+```{r}
+house <- data.frame(preds = preds, population = df$population, actual = df$profit)
+ggplot(house, aes(x=population, y=actual)) + geom_point() + geom_line(aes(x=population, y=preds)) + geom_smooth()
+```
+
+
+
+```{r}
+costs <- results[[2]]
+```
+
+```{r}
+costdf <- data.frame(cost = costs, iterations = 1:2000)
+ggplot(costdf, aes(x = iterations, y = cost)) + geom_line()
+```
+
+```{r}
+df <- read.csv("ex1data2.txt", header = FALSE)
+colnames(df) <- c("area", "bedrooms", "price")
+df <- apply(df, FUN = function(x) (x - mean(x))/sd(x), MARGIN = 2)
+head(df)
+```
+
+```{r}
+X <- cbind(1, df[, 1:ncol(df) - 1])
+y <- data.matrix(df[, ncol(df)])
+head(X)
+```
+
+```{r}
+theta <- matrix(c(0.0, 0.0, 0.0), ncol = 3)
+results <- gradDesc(X, y, theta, 0.02, 2000)
+```
+
+```{r}
+computeCost(X, y, results[[1]])
+```
+
+```{r}
+rsq <- function(X, y, w){
+    preds <- X %*% t(w)
+    ybar <- mean(y)
+    SStotal <- sum((y - ybar) * (y - ybar))
+    SSres <- sum((y - preds) * (y - preds))
+    return(1.0 - SSres/SStotal)
+}
+```
+
+```{r}
+rsq(X, y, results[[1]])
+```
+
+
+
+
+
+
+
+
+

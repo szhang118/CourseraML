@@ -1,0 +1,148 @@
+---
+title: "LogRegML"
+author: "Steve Zhang"
+date: "February 4, 2017"
+output: html_document
+---
+
+```{r}
+sigmoid <- function(z) {
+    return(1.0/(1 + exp(-z)))
+}
+library(ggplot2)
+```
+
+```{r}
+xs <- seq(-7, 7, 0.01)
+ys <- sigmoid(xs)
+df <- data.frame(x = xs, y = ys)
+ggplot(df, aes(x=x, y=y)) + geom_line() 
+```
+
+```{r}
+df1 <- read.csv("ex2data1.txt", header = FALSE)
+colnames(df1) <- c("exam1", "exam2", "admit")
+head(df1)
+```
+
+```{r}
+ggplot(df1, aes(x=exam1, y=exam2)) + geom_point(aes(shape=factor(admit)), size=2) + geom_point(aes(colour=factor(admit)))
+```
+
+```{r}
+cost <- function(theta, X, y) {
+    first <- (-y) * (log(sigmoid(X %*% t(theta))))
+    second <- (1 - y) * (log(1 - sigmoid(X %*% t(theta))))
+    return(sum(first - second) / nrow(X))
+}
+```
+
+```{r}
+data <- data.matrix(df1)
+data <- cbind(1, data)
+numcols <- ncol(data)
+X <- data.matrix(data[, 1:numcols - 1])
+y <- data.matrix(data[, numcols])
+theta <- matrix(c(0, 0, 0), nrow = 1)
+dim(X)
+dim(y)
+dim(theta)
+```
+
+```{r}
+cost(theta, X, y)
+```
+
+```{r}
+gradient <- function(theta, X, y) {
+    parameters <- ncol(theta)
+    grad <- rep(0, parameters)
+    
+    error <- sigmoid(X %*% t(theta)) - y
+    for (i in 1:parameters) {
+        grad[i] <- sum(error * X[, i])/nrow((X))
+    }
+    return(grad)
+}
+gradient(theta, X, y)
+```
+
+```{r}
+predict <- function(theta, X) {
+    probs <- sigmoid(X %*% t(theta))
+    return(as.numeric(probs >= 0.5))
+}
+```
+
+```{r}
+coefs <- matrix(c(-25.1613, 0.20623159, 0.20147149), nrow = 1)
+preds <- predict(coefs, X)
+cat("Logistic regression accuracy:", sum(preds == y)/length(y))
+```
+
+```{r}
+df2 <- read.csv("ex2data2.txt", header = FALSE)
+colnames(df2) <- c("test1", "test2", "accept")
+head(df2)
+```
+
+```{r}
+ggplot(df2, aes(x=test1, y=test2)) + geom_point(aes(shape=factor(accept), colour=factor(accept)), size=2)
+```
+
+```{r}
+degree <- 4
+x1 <- df2$test1
+x2 <- df2$test2
+for (i in 1:degree) {
+    for (j in 1:i-1) {
+        df2[paste("F", as.character(i), as.character(j), sep="")] <- x1^(i-j)*x2^2
+    }
+}
+```
+
+```{r}
+df2 <- df2[, !(names(df2) %in% c("test1", "test2"))]
+head(df2)
+```
+
+```{r}
+costReg <- function(theta, X, y, lamb) {
+    m <- nrow(X)
+    first <- (-y) * (log(sigmoid(X %*% t(theta))))
+    second <- (1 - y) * (log(1 - sigmoid(X %*% t(theta))))
+    reg <- lamb/(2.0*m) * sum(theta^2)
+    return(1.0/m*sum(first - second) + reg)
+}
+```
+
+```{r}
+data2 <- data.matrix(df2)
+data2 <- cbind(data2[, 1], 1, data2[, 2:ncol(data2)])
+numcols <- ncol(data2)
+X2 <- data.matrix(data2[, 2:numcols])
+y2 <- data.matrix(data2[, 1])
+theta2 <- matrix(rep(0, numcols-1), nrow = 1)
+lamb <- 1.0
+costReg(theta2, X2, y2, lamb)
+```
+
+```{r}
+gradReg <- function(theta, X, y, lamb) {
+    numParams <- ncol(theta)
+    grad = rep(0.0, numParams)
+    m <- nrow(y)
+    
+    errors <- sigmoid(X %*% t(theta)) - y
+    for (i in 1:numParams) {
+        term <- 1.0/m * sum(errors * X[, i])
+        if (i == 1) {
+            grad[i] <- term
+        } else{
+            grad[i] <- term + lamb/m * theta[, i]
+        }
+    }
+    return(grad)
+}
+gradReg(theta2, X2, y2, lamb)
+```
